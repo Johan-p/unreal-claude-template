@@ -8,15 +8,33 @@ for a set of queries. Outputs results as JSON.
 import argparse
 import json
 import os
-import select
+import queue
 import subprocess
 import sys
+import threading
 import time
 import uuid
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
 
 from scripts.utils import parse_skill_md
+
+
+def _pipe_reader(stream, out_queue: "queue.Queue"):
+    """Read a subprocess stdout pipe on a background thread and push chunks
+    to a queue. select.select() on a pipe (as opposed to a socket) only
+    works on POSIX -- on Windows it raises WinError 10038 -- so we use a
+    blocking-read thread + queue instead, which is portable everywhere."""
+    try:
+        while True:
+            chunk = stream.read(8192)
+            if not chunk:
+                break
+            out_queue.put(chunk)
+    except (OSError, ValueError):
+        pass
+    finally:
+        out_queue.put(None)  # sentinel: EOF
 
 
 def find_project_root() -> Path:
@@ -97,21 +115,29 @@ def run_single_query(
         pending_tool_name = None
         accumulated_json = ""
 
+        pipe_queue: "queue.Queue" = queue.Queue()
+        reader_thread = threading.Thread(
+            target=_pipe_reader, args=(process.stdout, pipe_queue), daemon=True
+        )
+        reader_thread.start()
+        pipe_eof = False
+
         try:
             while time.time() - start_time < timeout:
-                if process.poll() is not None:
-                    remaining = process.stdout.read()
-                    if remaining:
-                        buffer += remaining.decode("utf-8", errors="replace")
+                if process.poll() is not None and pipe_eof:
                     break
 
-                ready, _, _ = select.select([process.stdout], [], [], 1.0)
-                if not ready:
+                try:
+                    chunk = pipe_queue.get(timeout=1.0)
+                except queue.Empty:
                     continue
 
-                chunk = os.read(process.stdout.fileno(), 8192)
-                if not chunk:
-                    break
+                if chunk is None:
+                    pipe_eof = True
+                    if process.poll() is not None:
+                        break
+                    continue
+
                 buffer += chunk.decode("utf-8", errors="replace")
 
                 while "\n" in buffer:
@@ -125,7 +151,13 @@ def run_single_query(
                     except json.JSONDecodeError:
                         continue
 
-                    # Early detection via stream events
+                    # Early detection via stream events. Note: we do NOT bail out
+                    # the moment the model's first tool call is something other
+                    # than Skill/Read -- an agent that explores the project a
+                    # bit (Bash/Glob/Grep/etc.) before consulting a skill still
+                    # counts as triggered if it gets there eventually. Only a
+                    # full turn (or the whole run) with no Skill/Read call at
+                    # all counts as "not triggered".
                     if event.get("type") == "stream_event":
                         se = event.get("event", {})
                         se_type = se.get("type", "")
@@ -138,7 +170,7 @@ def run_single_query(
                                     pending_tool_name = tool_name
                                     accumulated_json = ""
                                 else:
-                                    return False
+                                    pending_tool_name = None
 
                         elif se_type == "content_block_delta" and pending_tool_name:
                             delta = se.get("delta", {})
@@ -147,13 +179,14 @@ def run_single_query(
                                 if clean_name in accumulated_json:
                                     return True
 
-                        elif se_type in ("content_block_stop", "message_stop"):
-                            if pending_tool_name:
-                                return clean_name in accumulated_json
-                            if se_type == "message_stop":
-                                return False
+                        elif se_type == "content_block_stop":
+                            if pending_tool_name and clean_name in accumulated_json:
+                                return True
+                            pending_tool_name = None
 
-                    # Fallback: full assistant message
+                    # Fallback: full assistant message (non-streaming path).
+                    # Scan every tool_use in the message; a non-matching tool
+                    # doesn't end the check -- keep watching later messages.
                     elif event.get("type") == "assistant":
                         message = event.get("message", {})
                         for content_item in message.get("content", []):
@@ -165,7 +198,8 @@ def run_single_query(
                                 triggered = True
                             elif tool_name == "Read" and clean_name in tool_input.get("file_path", ""):
                                 triggered = True
-                            return triggered
+                        if triggered:
+                            return True
 
                     elif event.get("type") == "result":
                         return triggered
