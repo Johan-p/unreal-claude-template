@@ -1,0 +1,27 @@
+{
+  "skill_name": "unreal-mcp-calls",
+  "notes": "All prompts are deliberately read-only: the eval subagents share one live Unreal editor, so mutating prompts would let parallel runs corrupt each other's state. The skill's value is measured by whether a run reaches the right answer WITHOUT paying for describe_toolset.",
+  "evals": [
+    {
+      "id": 0,
+      "name": "level-inventory",
+      "prompt": "The Unreal editor is open with a project. Tell me what's in the level that's currently loaded — how many actors there are, a breakdown of the most common actor types, and what folders exist in the outliner.",
+      "expected_output": "Correct level path, actor count, a type breakdown, and the outliner folder list. Ideally gathered with one execute_python_code call rather than many round trips.",
+      "files": []
+    },
+    {
+      "id": 1,
+      "name": "animation-asset-lookup",
+      "prompt": "Find the animation montages in this project. Pick one and tell me how long it is and what sections it has.",
+      "expected_output": "Locates montage assets, then inspects one. Should discover the VibeUE AnimMontageService API via dir() rather than describe_toolset, and should use the full asset path (package_name) rather than the folder path.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "name": "annotated-viewport-capture",
+      "prompt": "I want to see the layout of this level from above, with the actors labelled so I can tell what's where. Can you grab that for me?",
+      "expected_output": "Uses EditorAppToolset.CaptureViewport with annotations enabled (grid + actor labels), positioning the camera above the level. Should cap maxLabels rather than labelling everything.",
+      "files": []
+    }
+  ]
+}

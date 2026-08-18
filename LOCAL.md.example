@@ -1,0 +1,26 @@
+# LOCAL.md — machine-local environment (gitignored)
+
+Copy this file to `LOCAL.md` and fill in the real paths for your machine. `LOCAL.md` is imported into every session via CLAUDE.md (`@LOCAL.md`) and excluded from git. Skills, agents, and docs reference the keys below (written as `<KeyName>`) instead of hardcoding absolute paths.
+
+## Key paths
+
+- **UnrealProjectDir**: `<path to the Unreal project folder containing the .uproject>`
+- **UnrealEngineDir**: `<path to the Unreal Engine install, e.g. C:\Program Files\Epic Games\UE_5.8>`
+- **BuildScript**: `<UnrealProjectDir>\Plugins\VibeUE\BuildAndLaunchGame.ps1`
+- **Python3**: `<path to a Python 3 interpreter — the engine-bundled one works: <UnrealEngineDir>\Engine\Binaries\ThirdParty\Python3\Win64\python.exe>`
+- **PackagedBuilds**: `<UnrealProjectDir>\Packaged`
+- **Blender**: `<how Blender is installed/launched on this machine, if used>`
+
+## Verified commands
+
+Build C++ (editor must be **closed** — Live Coding blocks UBT):
+
+```powershell
+& "<UnrealEngineDir>\Engine\Build\BatchFiles\Build.bat" <YourProject>Editor Win64 Development -Project="<UnrealProjectDir>\<YourProject>.uproject" -WaitMutex
+```
+
+Headless automation tests:
+
+```powershell
+& "<UnrealEngineDir>\Engine\Binaries\Win64\UnrealEditor-Cmd.exe" "<UnrealProjectDir>\<YourProject>.uproject" -ExecCmds="Automation RunTests <TestPrefix>; Quit" -unattended -nullrhi -nosplash -nosound -stdout -NoLogTimes
+```

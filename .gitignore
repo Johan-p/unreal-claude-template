@@ -1,0 +1,22 @@
+# Machine-local paths and verified commands. Copy LOCAL.md.example to LOCAL.md
+# and fill it in, or run /setup-local-md. Never commit it: it is specific to one
+# machine, and keeping it out of git is what lets everything else be shared.
+LOCAL.md
+
+# Machine-local Claude Code settings (permissions, enabled MCP servers).
+# Deliberately not shared; it reflects one machine's trust decisions.
+.claude/settings.local.json
+
+# Build/packaging logs
+*.log
+
+# Python bytecode from the bundled skill scripts
+__pycache__/
+*.pyc
+
+# OS / editor cruft
+Thumbs.db
+desktop.ini
+.DS_Store
+*.swp
+*~

@@ -1,0 +1,20 @@
+{
+  "skill_name": "pcg-authoring",
+  "notes": "Eval 1 drives the LIVE Unreal editor via unreal-mcp — with_skill and baseline runs MUST be serialized (one editor, one MCP server) and must build into separate /Game/Temp subfolders. Eval 2 is text-only and can run in parallel with anything.",
+  "evals": [
+    {
+      "id": 1,
+      "name": "two-category-no-overlap-graph",
+      "prompt": "The Unreal editor is running with the eval project <ElectricDreamsEnv per LOCAL.md> and the unreal-mcp MCP server is connected (execute_python_code etc.). Create a PCG graph asset at /Game/Temp/<RUNDIR>/PCG_EvalTwoCat that scatters two categories of meshes on the landscape: category A = engine Cube (/Engine/BasicShapes/Cube) as sparse large objects, category B = engine Sphere (/Engine/BasicShapes/Sphere) as denser small objects. Requirements: spheres must never spawn where cubes are; coverage should look natural/patchy rather than uniform; all points must sit on the landscape surface. Build the complete graph programmatically, then report the node list and how the no-overlap requirement is implemented.",
+      "expected_output": "A PCGGraph asset containing per-category SurfaceSamplers (extents sized per category), a Difference node subtracting category A's (bounds-inflated) points from category B's samples (Binary/Discrete), AttributeNoise+DensityFilter for patchiness, Projection onto landscape, and two StaticMeshSpawners with correctly-set weighted mesh entries (loaded mesh objects). No SelfPruning / merge-and-resplit approach.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "name": "dynamic-river-clearing-design",
+      "prompt": "In our UE 5.8 game, a river is defined by a spline component on a river actor. The level's set dressing (trees, rocks, bushes) is scattered by a PCG graph. I want the dressing to keep a clear band around the river, and when a designer drags the river spline around in the editor the clearing must follow automatically without anyone clicking regenerate. Describe the exact PCG node setup on both the river actor and the dressing graph to achieve this, with concrete node names and settings.",
+      "expected_output": "Tag contract: actor tag on the river actor + component tag on its spline; dressing graph uses Get Actor Data (ParseActorComponents, by tag, track actors only within bounds) -> Filter Data By Tag -> SplineSampler (OnInterior) -> BoundsModifier (Scale mode, scale sets band width) -> merged into cutouts -> Difference inputs of every category. Regeneration is automatic via PCG actor tracking; NO Tick/event-driven manual regeneration, no construction-script hacks.",
+      "files": []
+    }
+  ]
+}
