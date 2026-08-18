@@ -9,6 +9,7 @@ Copy this file to `LOCAL.md` and fill in the real paths for your machine. `LOCAL
 - **BuildScript**: `<UnrealProjectDir>\Plugins\VibeUE\BuildAndLaunchGame.ps1`
 - **Python3**: `<path to a Python 3 interpreter — the engine-bundled one works: <UnrealEngineDir>\Engine\Binaries\ThirdParty\Python3\Win64\python.exe>`
 - **PackagedBuilds**: `<UnrealProjectDir>\Packaged`
+- **GameAnimSampleDir** *(optional)*: `<path to Epic's Game Animation Sample project, if installed>` — used by the animation skills (`ue-motion-matching`, `ue-anim-warping-locomotion`, `ue-character-rigging-retargeting`) as their reference implementation
 - **Blender**: `<how Blender is installed/launched on this machine, if used>`
 
 ## Verified commands

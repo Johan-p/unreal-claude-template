@@ -546,3 +546,54 @@ so the server's `CharacterMovementComponent` processes root motion authoritative
 - `AddNativeTransitionBinding` must be called in `NativeInitializeAnimation`,
   not in `BeginPlay` or later. The binding is registered against the compiled
   state machine before the AnimGraph evaluates.
+
+---
+
+## FAnimInstanceProxy — Worker-Thread Data Pattern
+
+For heavy per-frame animation logic that shouldn't touch the game thread, use a
+proxy: copy gameplay state into it on the game thread (`PreUpdate`), compute on
+the worker thread (`Update`), read the results in
+`NativeThreadSafeUpdateAnimation` via `GetProxyOnAnyThread`.
+
+```cpp
+USTRUCT()
+struct FMyAnimInstanceProxy : public FAnimInstanceProxy
+{
+    GENERATED_BODY()
+    FMyAnimInstanceProxy() = default;
+    explicit FMyAnimInstanceProxy(UAnimInstance* Instance) : FAnimInstanceProxy(Instance) {}
+
+    float Speed = 0.f;
+    FVector Velocity = FVector::ZeroVector;
+    TEnumAsByte<EMovementMode> MovementMode = MOVE_None;
+
+    virtual void PreUpdate(UAnimInstance* AnimInstance, float DeltaSeconds) override;
+    virtual void Update(float DeltaSeconds) override;   // worker thread
+};
+
+// Game thread, each frame -- the ONLY safe place to read gameplay objects
+void FMyAnimInstanceProxy::PreUpdate(UAnimInstance* AnimInstance, float DeltaSeconds)
+{
+    FAnimInstanceProxy::PreUpdate(AnimInstance, DeltaSeconds);
+    if (const ACharacter* C = Cast<ACharacter>(AnimInstance->GetOwningActor()))
+    {
+        Velocity = C->GetCharacterMovement()->Velocity;
+        MovementMode = C->GetCharacterMovement()->MovementMode;
+    }
+}
+
+// In UMyAnimInstance:
+virtual FAnimInstanceProxy* CreateAnimInstanceProxy() override
+{ return new FMyAnimInstanceProxy(this); }
+
+void UMyAnimInstance::NativeThreadSafeUpdateAnimation(float DeltaSeconds)
+{
+    FMyAnimInstanceProxy& Proxy = GetProxyOnAnyThread<FMyAnimInstanceProxy>();
+    Proxy.Speed = Proxy.Velocity.Size();   // worker-thread math on copied data
+}
+```
+
+The engine copies proxy data between threads at safe sync points. Rule of
+thumb: gameplay object access only in `PreUpdate`; everything else operates on
+the proxy's own members.
